@@ -4,16 +4,16 @@
 baseurl:
 url: https://scottyzh.github.io
 date_format: "ordinal"
-title: 码志
-subtitle: "公众号：闷骚的程序员"
-description: "马壮的个人博客，公众号：闷骚的程序员"
-keywords: 码志, Zhuang Ma, mzlogin, mazhuang, 闷骚的程序员
+title: ZH的博客
+subtitle: "zh专属空间"
+description: "个人博客"
+keywords: 博客
 timezone: Asia/Shanghai
 encoding: "utf-8"
 # 页面左下角显示的年份
-since: 2015
+since: 2023
 # 源码仓库，请替换成自己的
-repository: mzlogin/mzlogin.github.io
+repository: scottyzh/scottyzh.github.io
 # 对 css 和 js 资源的 cdn 加速配置
 cdn:
     jsdelivr:
