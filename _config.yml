@@ -4,8 +4,8 @@
 baseurl:
 url: https://scottyzh.github.io
 date_format: "ordinal"
-title: ZH博客
-subtitle: "zh专属空间"
+title: Scottyzh的博客
+subtitle: "记录所感所悟"
 description: "个人博客"
 keywords: 博客
 timezone: Asia/Shanghai
