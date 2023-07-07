@@ -1,5 +1,5 @@
 <link rel="stylesheet" href="https://imsun.github.io/gitment/style/default.css">
-<script src="https://imsun.github.io/gitment/dist/gitment.browser.js"></script>
+<script type="text/javascript"  src="https://imsun.github.io/gitment/dist/gitment.browser.js"></script>
 {% if page.comments != false %}
 
   {% if site.comments_provider != 'disqus' and site.lazy_load_disqus and site.disqus and site.disqus.username %}
@@ -75,7 +75,7 @@
     {% when 'gitment' %}
         <div id="container"></div>
 <link rel="stylesheet" href="https://imsun.github.io/gitment/style/default.css">
-<script src="https://imsun.github.io/gitment/dist/gitment.browser.js"></script>
+<script type="text/javascript"  src="https://imsun.github.io/gitment/dist/gitment.browser.js"></script>
         <script>
         var gitment = new Gitment({
             id: '{{ page.url | truncate: 50, '' }}',
