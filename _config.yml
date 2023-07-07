@@ -150,7 +150,7 @@ disqus:
 # gitment 配置参考：https://imsun.net/posts/gitment-introduction/
 gitment:
     owner: scottyzh
-    repo: blog-comments
+    repo: scottyzh/blog-comments
     oauth:
         client_id: 16e4a3b82cd9b41e86b6
         client_secret: 49fe044f9e3735bf84421a0c4a12ebff3f9278f6
