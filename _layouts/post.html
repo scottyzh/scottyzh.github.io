@@ -56,28 +56,20 @@ layout: default
     {% include content-footer-ad.html %}
     <div class="comment">
 <!--       {% include comments.html %} -->
-      <div id="gitmentContainer"></div>
-<link rel="stylesheet" href="https://imsun.github.io/gitment/style/default.css">
-<script src="https://imsun.github.io/gitment/dist/gitment.browser.js"></script>
-<script>
-    var gitment = new Gitment({
-        id: '<%= page.date %>',
-        owner: '{{scottyzh}}',
-        repo: '{{scottyzh/blog-comments}}',
-        oauth: {
-            client_id: {{16e4a3b82cd9b41e86b6}},
-            client_secret: {{49fe044f9e3735bf84421a0c4a12ebff3f9278f6}},
-        },
-    });
-    gitment.render('gitmentContainer')
-</script>
-    </div>
-  </div>
-  <div class="column one-fourth">
-    {% include sidebar-search.html %}
-    {% include sidebar-post-nav.html %}
-    {% include sidebar-detail-ad.html %}
-  </div>
-</div>
+            <div id="container"></div>
+        <link rel="stylesheet" href="https://fastly.jsdelivr.net/gh/imsun.github.io/gitment/style/default.css">
+        <script src="https://fastly.jsdelivr.net/gh/imsun.github.io/gitment/dist/gitment.browser.js"></script>
+        <script>
+        var gitment = new Gitment({
+            id: '{{ page.url | truncate: 50, '' }}',
+            owner: '{{ site.gitment.owner }}',
+            repo: '{{ site.gitment.repo }}',
+            oauth: {
+                client_id: '{{ site.gitment.oauth.client_id }}',
+                client_secret: '{{ site.gitment.oauth.client_secret }}',
+            },
+        });
+        gitment.render('container');
+        </script>
 </section>
 <!-- /section.content -->
