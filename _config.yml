@@ -151,7 +151,7 @@ disqus:
 gitment:
     enable: true
     owner: scottyzh
-    repo: scottyzh/blog-comments
+    repo: blog-comments
     oauth:
         client_id: 16e4a3b82cd9b41e86b6
         client_secret: 49fe044f9e3735bf84421a0c4a12ebff3f9278f6
