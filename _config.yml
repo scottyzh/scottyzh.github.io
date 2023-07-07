@@ -149,7 +149,7 @@ disqus:
     username: 
 # gitment 配置参考：https://imsun.net/posts/gitment-introduction/
 gitment:
-  enable: true
+    enable: true
     owner: scottyzh
     repo: scottyzh/blog-comments
     oauth:
