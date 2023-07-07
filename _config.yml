@@ -149,11 +149,13 @@ disqus:
     username: 
 # gitment 配置参考：https://imsun.net/posts/gitment-introduction/
 gitment:
+  enable: true
     owner: scottyzh
     repo: scottyzh/blog-comments
     oauth:
         client_id: 16e4a3b82cd9b41e86b6
         client_secret: 49fe044f9e3735bf84421a0c4a12ebff3f9278f6
+    lazy: true
 # gitalk 配置参考：https://github.com/gitalk/gitalk#install
 gitalk:
     owner: mzlogin
