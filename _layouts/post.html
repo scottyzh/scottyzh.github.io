@@ -6,8 +6,8 @@ layout: default
 {% if site.cdn.jsdelivr.enabled %}
 {% assign assets_base_url = "https://fastly.jsdelivr.net/gh/" | append: site.repository | append: '@master' %}
 {% endif %}
-        <link rel="stylesheet" href="https://fastly.jsdelivr.net/gh/imsun.github.io/gitment/style/default.css">
-        <script src="https://fastly.jsdelivr.net/gh/imsun.github.io/gitment/dist/gitment.browser.js"></script>
+<link rel="stylesheet" href="https://imsun.github.io/gitment/style/default.css">
+<script src="https://imsun.github.io/gitment/dist/gitment.browser.js"></script>
 <section class="collection-head small geopattern" data-pattern-id="{{ page.title | truncate: 15, ''}}">
 <div class="container">
   <div class="columns">
