@@ -55,21 +55,6 @@ layout: default
     </div>
     {% include content-footer-ad.html %}
     <div class="comment">
-<!--       {% include comments.html %} -->
-            <div id="container"></div>
-        <link rel="stylesheet" href="https://fastly.jsdelivr.net/gh/imsun.github.io/gitment/style/default.css">
-        <script src="https://fastly.jsdelivr.net/gh/imsun.github.io/gitment/dist/gitment.browser.js"></script>
-        <script>
-        var gitment = new Gitment({
-            id: '{{ page.url | truncate: 50, '' }}',
-            owner: '{{ site.gitment.owner }}',
-            repo: '{{ site.gitment.repo }}',
-            oauth: {
-                client_id: '{{ site.gitment.oauth.client_id }}',
-                client_secret: '{{ site.gitment.oauth.client_secret }}',
-            },
-        });
-        gitment.render('container');
-        </script>
+      {% include comments.html %}
 </section>
 <!-- /section.content -->
