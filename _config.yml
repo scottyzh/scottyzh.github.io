@@ -141,7 +141,7 @@ collections:
 #      Comments    #
 # ---------------- #
 # support provider: disqus, gitment, gitalk, utterances, beaudar, giscus
-comments_provider: gitment
+comments_provider: giscus
 # !!!重要!!! 请修改下面这些信息为你自己申请的
 # !!!Important!!! Please modify infos below to yours
 # disqus 配置参考：https://disqus.com
@@ -170,10 +170,10 @@ beaudar:
     repo: mzlogin/blog-comments
 # giscus 配置参考：https://giscus.app/zh-CN
 giscus:
-    repo: mzlogin/blog-comments
-    repo-id: MDEwOlJlcG9zaXRvcnk5MzEyNzkxNw==
+    repo: scottyzh/blog-comments
+    repo-id: R_kgDOJ4owfQ
     category: Announcements
-    category-id: DIC_kwDOBY0E7c4CRtg9
+    category-id: DIC_kwDOJ4owfc4CXyZl
 # 在使用其它评论组件时可点击显示 Disqus
 lazy_load_disqus : false
 
