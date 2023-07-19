@@ -32,12 +32,15 @@ sudo wget http://gosspublic.alicdn.com/ossfs/ossfs_1.80.6_centos7.0_x86_64.rpm
 
 以CentOS 7.0(x64)版本为例，安装命令如下：
 
+```
 sudo yum install ossfs_1.80.6_centos7.0_x86_64.rpm
+```
 
 （4）  配置账号访问信息。
 
 将Bucket名称以及具有该Bucket访问权限的AccessKey ID和AccessKey Secret信息存放在/etc/passwd-ossfs文件中。文件的权限建议设置为640。
 
+```
 sudo **echo** BucketName:yourAccessKeyId:yourAccessKeySecret > /etc/passwd-ossfs
 
 sudo **chmod** 640 /etc/passwd-ossfs
@@ -47,6 +50,7 @@ BucketName、yourAccessKeyId、yourAccessKeySecret请按需替换为您实际的
 sudo **echo** bucket-test:LTAIbZcdmQ****:MOk8x0y1coh7A5e2MZEUz**** > /etc/passwd-ossfs
 
 sudo **chmod** 640 /etc/passwd-ossfs
+```
 
 （5）将Bucket挂载到指定目录。
 
@@ -54,14 +58,17 @@ sudo **chmod** 640 /etc/passwd-ossfs
 
 示例如下：
 
+```
 **mkdir** /tmp/ossfs
 
 ossfs video-bucket01 /data/docker/videoSystem_v/videoRes -o url=http://oss-cn-hangzhou.aliyuncs.com
+```
 
  
 
 （6）由于系统是跑在docker里面，数据是存储到容器里，因此需要把容器里的数据与oss映射的路径做绑定，这里通过创建docker数据卷做绑定：
 
+```
  docker volume create --driver local \
 
   --opt type=none \
@@ -71,18 +78,23 @@ ossfs video-bucket01 /data/docker/videoSystem_v/videoRes -o url=http://oss-cn-ha
   --opt o=bind \
 
   oss_volume_name
+```
 
  
 
 （7）启动docker对应镜像，并作为数据卷的绑定：
 
+```
 docker run -p 8181:8181 -v oss_volume_name:/videoSystem_workdir/videoRes --name videoSystem --restart unless-stopped -d videosystem:v4.0
+```
 
  
 
 （8）Bucket卸载指令
 
+```
 sudo fusermount -u /data/docker/videoSystem_v/videoRes
+```
 
 
 
