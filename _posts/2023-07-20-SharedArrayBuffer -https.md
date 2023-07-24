@@ -83,6 +83,7 @@ server {
         listen       443 ssl;
         ssl_certificate "/etc/nginx/server.crt";
         ssl_certificate_key "/etc/nginx/server.key";
+    ##下面信息要根据实际去配
         ssl_session_cache    shared:SSL:1m;
         ssl_session_timeout  5m;    
 		ssl_ciphers  HIGH:!aNULL:!MD5;
@@ -90,6 +91,7 @@ server {
  
     location / {
      proxy_set_header X-Real-IP $remote_addr;
+    ##下面信息要根据实际需求去配用
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header Host  $http_host;
         proxy_set_header X-Nginx-Proxy true;
