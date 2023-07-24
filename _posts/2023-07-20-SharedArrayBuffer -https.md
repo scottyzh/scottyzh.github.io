@@ -44,7 +44,7 @@ springboot项目配置
 6     enabled: true
 ```
 
-然后再启动类中配置如下代码，
+然后再启动类中配置如下代码，实现全部Http请求转Https
 
 ```java
  1  @Bean
