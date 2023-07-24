@@ -76,16 +76,17 @@ springboot项目配置
 
 将证书放到nginx的config目录下，配置443端口转发到应用端口8181：
 
+
+
+```nginx
 server {
         listen       443 ssl;
         ssl_certificate "/etc/nginx/server.crt";
         ssl_certificate_key "/etc/nginx/server.key";
         ssl_session_cache    shared:SSL:1m;
-        ssl_session_timeout  5m;
-
-```nginx
-    ssl_ciphers  HIGH:!aNULL:!MD5;
-    ssl_prefer_server_ciphers  on;
+        ssl_session_timeout  5m;    
+		ssl_ciphers  HIGH:!aNULL:!MD5;
+   		ssl_prefer_server_ciphers  on;
  
     location / {
      proxy_set_header X-Real-IP $remote_addr;
@@ -101,4 +102,11 @@ server {
 }
 ```
 
+其中add_header Content-Security-Policy "upgrade-insecure-requests"这一行是为了解决以下的错误
+
+```
+chunk-libs.8b3cc80f.js:70  Mixed Content: The page at 'https://xx' was loaded over HTTPS, but requested an insecure XMLHttpRequest endpoint 'http://xxx'. This request has been blocked; the content must be served over HTTPS.
+```
+
 配置成功后用https+服务器ip+服务Url，访问项目，压缩功能可以正常使用，不再报错。
+
