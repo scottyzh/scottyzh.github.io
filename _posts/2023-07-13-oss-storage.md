@@ -6,7 +6,7 @@ description: SpringBoot+OSS方案
 keywords: OSS  
 ---
 
-第一次实习，接受的任务就是将公司的视频资源迁移到OSS服务器上，这里记录一下一些迁移过程。
+视频资源迁移到OSS服务器上，记录一下迁移过程。
 
 
 
@@ -106,206 +106,501 @@ sudo fusermount -u /data/docker/videoSystem_v/videoRes
 
 ## 数据迁移方案二
 
-方案二从代码端进行更改，并且更改上传的模式。
+方案二从代码端进行更改，并且更改上传的模式——由前端进行上传。
 
-后端代码修改方案：
+### 配置OSS
 
-1、上传方式由后端上传改到前端，该方案进行sts认证，需要在OSS服务器端开启，并且要开启跨域访问，新增一些自定义权限认证，后端只负责授权即可，代码：
+1、本套方案采用前端上传文件的方式，需要前端向请求sts权限认证，为实现这套流程，需要在OSS控制台申请RAM用户，并且配置相关的请求sts认证权限。具体流程参考：
+
+[使用STS临时访问凭证访问OSS (aliyun.com)](https://help.aliyun.com/document_detail/100624.html)
+
+2、保存RAM用户的访问密钥（AccessKey ID 和 AccessKey Secret）。
+
+3、将bucket的权限设置为公共读，其文件的url是永久有效的，方便我们存到数据库以及后续通过url进行文件的下载和播放。
+
+
+
+### 后端代码修改
+
+新增AliyunConfig类：
 
 ```java
-   /********************************
-     *  @function  : 前端获取oss的sts认证
-     *  @parameter :
-     *  @return    : AjaxResult
-     *  @date      : 2023.06.25 15:37
-     ********************************/
-    @ResponseBody
-    @GetMapping("/getSts")
-    public AjaxResult getSts(HttpServletRequest req) throws com.aliyuncs.exceptions.ClientException {
-        AssumeRoleResponse.Credentials credentials = null;
-        String endpoint = "sts.cn-hangzhou.aliyuncs.com";
-        String accessKeyId = "";
-        String accessKeySecret = "";
-        String roleArn = "";
-        String roleSessionName = "AliyunDMSRol--ePolicy";
-        String bucket = "video-bucket01";
-        String region = "oss-cn-hangzhou";
-        String policy = "{\n" +
-                "    \"Statement\": [\n" +
-                "        {\n" +
-                "            \"Action\": [\n" +
-                "                \"oss:GetObject\",\n" +
-                "                \"oss:PutObject\",\n" +
-                "                \"oss:DeleteObject\",\n" +
-                "                \"oss:ListParts\",\n" +
-                "                \"oss:AbortMultipartUpload\",\n" +
-                "                \"oss:ListObjects\"\n" +
-                "            ],\n" +
-                "            \"Effect\": \"Allow\",\n" +
-                "            \"Resource\": [\n" +
-                "                \"acs:oss:*:*:video-bucket01/*\",\n" +
-                "                \"acs:oss:*:*:video-bucket01\"\n" +
-                "            ]\n" +
-                "        }\n" +
-                "    ],\n" +
-                "    \"Version\": \"1\"\n" +
-                "}";
-        // 设置临时访问凭证的有效时间为3600秒。
-        Long durationSeconds = 3600L;
-        Map<String, Object> map = new HashMap<>();
-        try {
-            // 添加endpoint（直接使用STS endpoint，前两个参数留空，无需添加region ID）
-            DefaultProfile.addEndpoint("", "", "Sts", endpoint);
-            // 构造default profile（参数留空，无需添加region ID）
-            IClientProfile profile = DefaultProfile.getProfile("", accessKeyId, accessKeySecret);
-            // 用profile构造client
-            DefaultAcsClient client = new DefaultAcsClient(profile);
-            final AssumeRoleRequest request = new AssumeRoleRequest();
-            request.setMethod(MethodType.POST);
-            request.setRoleArn(roleArn);
-            request.setRoleSessionName(roleSessionName);
-            request.setPolicy(policy); // Optional
-            request.setProtocol(ProtocolType.HTTPS); // 必须使用HTTPS协议访问STS服务);
-            final AssumeRoleResponse response = client.getAcsResponse(request);
-            credentials = response.getCredentials();
-            map = ObjectToMapUtil.objectToMap(credentials);
-            map.put("bucket", bucket);
-            map.put("region", region);
-            CallBack callback = new CallBack();
-           
-            //回调地址
-            callback.setUrl("http://y3bq3i.natappfree.cc/clt3D/videoUpload/callBack");
-           //设置返回的回调参数 其中后面两个是自定义参数。
-      callback.setBody("fileName=${object}&size=${size}&mimeType=${mimeType}&videoName=${x:videoName}&definition=${x:definition}");
-            callback.setContentType("application/x-www-form-urlencoded");
-//            String callbackData = BinaryUtil.toBase64String(JSONUtil.parse(callback).toString().getBytes("utf-8"));
-            map.put("callback", callback);
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-        return AjaxResult.success(map);
+@Component
+@ConfigurationProperties(prefix = "aliyun")
+@Data
+public class AliyunConfig {
+
+    // aliyun endpoint
+    private String endpoint;
+
+    // aliyun accessKeyId
+    private String accessKeyId;
+
+    // aliyun accessKeySecret
+    private String accessKeySecret;
+
+    // aliyun bucketName
+    private String bucketName;
+
+    // aliyun urlPrefix
+    private String urlPrefix;
+
+    // aliyun stsEndPoint
+    private String stsEndPoint;
+
+    // 用户权限角色
+    private String roleArn;
+
+    // OSS所在区域
+    private String region;
+
+    // OSS回调地址
+    private String callBackUrl;
+
+    // 3D存储路径
+    private String StorageDirXA;
+
+    // XR存储路径
+    private String StorageDirXB;
+
+    @Bean
+    public OSS oSSClient() {
+        return new OSSClient(endpoint, accessKeyId, accessKeySecret);
     }
-```
-
-2、上传成功后OSS调用回调接口，返回上传的文件的数据：
-
-```java
- /********************************
-     *  @function  : 回调接口，将数据写入数据库以及返回成功值给OSS服务器
-     *  @parameter :
-     *  @return    : HashMap<String, String>
-     *  @date      : 2023.06.25 15:37
-     ********************************/
-    @ResponseBody
-    @PostMapping("/callBack")
-    public AjaxResult callBack(HttpServletRequest request) {
-        String fileName = request.getParameter("fileName");
-        String videoName = request.getParameter("videoName");
-        String definition = request.getParameter("definition");
-        String size = request.getParameter("size");
-        String mimeType = request.getParameter("mimeType");
-        String ossUrl = "https://video-bucket01.oss-cn-hangzhou.aliyuncs.com";
-        if (fileName.equals("") || size.equals("")) {
-            return AjaxResult.failed("上传失败");
-        }
-        String[] mimeTypeArray = mimeType.split("/");
-        //获取文件类型 video 或者是 image
-        String fileType = mimeTypeArray[mimeTypeArray.length - 1];
-        //得到后缀
-        String[] fileNameArray = fileName.split("/");
-        String fileUUID = fileNameArray[2];
-        String fileDir;
-//        String parent3DDir = ResourceUtil.getStorageParent3DDir();
-        Video3D newVideo3D = new Video3D().setMark(fileUUID)
-                .setType(0)
-                .setVideoName(videoName)
-                .setUploadTime(new Date());
-        Integer fileSize = Integer.parseInt(size) / 1024000;
-        switch (definition) {
-            case "360p":     // 判断属于哪种清晰度,决定保存的文件名
-                fileDir = "video360p";
-                newVideo3D.setVideo360pFormat(fileType);
-                newVideo3D.setVideo360pSize(fileSize + "MB");
-                newVideo3D.setVideo360pUrl(ossUrl + "/videoRes/share3D/" + fileUUID + "/" + fileName);
-                break;
-            case "480p":
-                fileDir = "video480p";
-                newVideo3D.setVideo480pFormat(fileType);
-                newVideo3D.setVideo480pSize(fileSize + "MB");
-                newVideo3D.setVideo480pUrl(ossUrl + "/videoRes/share3D/" + fileUUID + "/" + fileName);
-                break;
-            case "720p":
-                fileDir = "video720p";
-                newVideo3D.setVideo720pFormat(fileType);
-                newVideo3D.setVideo720pSize(fileSize + "MB");
-                newVideo3D.setVideo720pUrl(ossUrl + "/videoRes/share3D/" + fileUUID + "/" + fileName);
-                break;
-            case "1080p":
-                fileDir = "video1080p";
-                newVideo3D.setVideo1080pFormat(fileType);
-                newVideo3D.setVideo1080pSize(fileSize + "MB");
-                newVideo3D.setVideo1080pUrl(ossUrl + "/" + fileName);
-                break;
-            default:
-                break;
-        }
-
-        //QR图也要处理
-        // 从微信小程序服务器获取视频对应的QR码
-        try {
-            newVideo3D.setQrUrl(getQr(getUsableToken().getAccessToken(), fileUUID));
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-
-        //把上传的文件数据入库 判断是照片还是视频
-        try {
-            video3DService.save(newVideo3D);
-        } catch (Exception e) {
-            e.printStackTrace();
-            return AjaxResult.failed("上传失败");
-        }
-
-        return AjaxResult.success("上传成功");
-    }
-```
-
-3、删除OSS的资源接口修改：
-
-```java
-try {
-  
-    String prefix = "videoRes/share3D/" + mark + "/";
-    // 列举所有包含指定前缀的文件并删除。
-    String nextMarker = null;
-    ObjectListing objectListing = null;
-    String bucketName = "video-bucket01";
-    do {
-        ListObjectsRequest listObjectsRequest = new ListObjectsRequest(bucketName)
-                .withPrefix(prefix)
-                .withMarker(nextMarker);
-        objectListing = ossClient.listObjects(listObjectsRequest);
-        if (objectListing.getObjectSummaries().size() > 0) {
-            List<String> keys = new ArrayList<String>();
-            for (OSSObjectSummary s : objectListing.getObjectSummaries()) {
-                System.out.println("key name: " + s.getKey());
-                keys.add(s.getKey());
-            }
-            DeleteObjectsRequest deleteObjectsRequest = new DeleteObjectsRequest(bucketName).withKeys(keys).withEncodingType("url");
-            DeleteObjectsResult deleteObjectsResult = ossClient.deleteObjects(deleteObjectsRequest);
-            List<String> deletedObjects = deleteObjectsResult.getDeletedObjects();
-            for (String obj : deletedObjects) {
-                    String deleteObj = URLDecoder.decode(obj, "UTF-8");
-                    System.out.println(deleteObj);
-            }
-        }
-        nextMarker = objectListing.getNextMarker();
-    } while (objectListing.isTruncated());
-} catch (Exception e) {
-    e.printStackTrace();
-    return AjaxResult.failed();
 }
 ```
 
+在applicantion.yml新增配置信息：
+
+```
+aliyun:
+  endpoint: oss-cn-shenzhen.aliyuncs.com
+  accessKeyId: LTAI5t**********B9vBbD
+  accessKeySecret: 0FI3UB*****3KxnZdKNpHKWcY
+  bucketName: ******
+  urlPrefix: https:********.com
+  stsEndPoint: sts.cn-shenzhen.aliyuncs.com
+  roleArn: acs:ram::10*****2863:role/ramosstest
+  region: oss-cn-shenzhen
+  callBackUrl: https://**********
+  StorageDir3d: videoRes/shareXA
+  StorageDirXr: videoRes/shareXB
+```
+
+回调上传
+
+```java
+@ResponseBody
+@GetMapping("/getSts")
+public AjaxResult getSts(HttpServletRequest req) throws com.aliyuncs.exceptions.ClientException {
+    AssumeRoleResponse.Credentials credentials = null;
+    String roleSessionName = "AliyunDMSRol--ePolicy";
+    // OSS服务器上设置的角色拥有所有权限，可以在下面policy添加需要的权限，按需要给予相关权限
+    String policy = "{\n" +
+            "    \"Statement\": [\n" +
+            "        {\n" +
+            "            \"Action\": [\n" +
+            "                \"oss:GetObject\",\n" +
+            "                \"oss:PutObject\",\n" +
+            // 前端暂时不需要删除权限
+            //"                \"oss:DeleteObject\",\n" +
+            "                \"oss:ListParts\",\n" +
+            "                \"oss:AbortMultipartUpload\",\n" +
+            "                \"oss:ListObjects\"\n" +
+            // 下面的oss:* 拥有所有权限 慎用
+            //"                \"oss:*\"\n" +
+            "            ],\n" +
+            "            \"Effect\": \"Allow\",\n" +
+            "            \"Resource\": [\n" +
+            "                \"acs:oss:*:*:colorlight-video/*\",\n" +
+            "                \"acs:oss:*:*:colorlight-video\"\n" +
+            "            ]\n" +
+            "        }\n" +
+            "    ],\n" +
+            "    \"Version\": \"1\"\n" +
+            "}";
+    // 设置临时访问凭证的有效时间为3600秒。
+    Long durationSeconds = 3600L;
+    Map<String, Object> map = new HashMap<>();
+    try {
+        // 添加endpoint（直接使用STS endpoint，前两个参数留空，无需添加region ID）
+        DefaultProfile.addEndpoint("", "", "Sts", aliyunConfig.getStsEndPoint());
+        // 构造default profile（参数留空，无需添加region ID）
+        IClientProfile profile = DefaultProfile.getProfile("", aliyunConfig.getAccessKeyId(), aliyunConfig.getAccessKeySecret());
+        // 用profile构造client
+        DefaultAcsClient client = new DefaultAcsClient(profile);
+        final AssumeRoleRequest request = new AssumeRoleRequest();
+        request.setMethod(MethodType.POST);
+        request.setRoleArn(aliyunConfig.getRoleArn());
+        request.setRoleSessionName(roleSessionName);
+        request.setPolicy(policy); // Optional
+        request.setProtocol(ProtocolType.HTTPS); // 必须使用HTTPS协议访问STS服务);
+        final AssumeRoleResponse response = client.getAcsResponse(request);
+        credentials = response.getCredentials();
+        map = ObjectToMapUtil.objectToMap(credentials);
+        map.put("bucket", aliyunConfig.getBucketName());
+        map.put("region",aliyunConfig.getRegion());
+        CallBack callback = new CallBack();
+        callback.setUrl(aliyunConfig.getCallBackUrl() + "/clt3D/videoUpload/callBack");
+        callback.setBody("{fileName:${object},size:${size},mimeType:${mimeType},videoName:${x:videoName},definition:${x:definition}}");
+        callback.setContentType("application/json");
+        map.put("callback", callback);
+    } catch (Exception e) {
+        e.printStackTrace();
+    }
+    return AjaxResult.success(map);
+}
+
+```
+
+上传成功后OSS调用回调接口，返回上传的文件的数据：
+
+```java
+ @ResponseBody
+@PostMapping("/callBack")
+@Log(title = "新增视频", module = "clt3D", businessType = BusinessTypeEnum.INSERT)
+public AjaxResult callBack(HttpServletRequest request, HttpServletResponse response) {
+    Video3D newVideo3D;
+    String fileUUID;
+    try {
+        AliyunCallbackUtil aliyunCallbackUtil = new AliyunCallbackUtil();
+        String ossCallBackBody = aliyunCallbackUtil.GetPostBody(request.getInputStream(), Integer.parseInt(request.getHeader("content-length")));
+        JSONObject jsonBody = JSON.parseObject(ossCallBackBody);
+        String fileName = jsonBody.getString("fileName");
+        String videoOriginalFilename = jsonBody.getString("videoName");
+        String videoName = NameUtil.format3DVideoName(ResourceUtil.getFileNamePrefix(videoOriginalFilename));
+        String definition = jsonBody.getString("definition");
+        String size = jsonBody.getString("size");
+        String ossUrl = aliyunConfig.getUrlPrefix();
+        String fileDir;
+        boolean zipFlag = false;
+        boolean verifyResult = aliyunCallbackUtil.VerifyOSSCallbackRequest(request, ossCallBackBody);
+        // 回调签名验证是不是OSS发来的签名
+        if (!verifyResult) {
+            response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
+            return AjaxResult.failed("OSS回调签名验证失败");
+        }
+        String[] videoNameArray = videoOriginalFilename.split("\\.");
+        //获取文件类型 video 或者是 image
+        String fileType = videoNameArray[videoNameArray.length - 1];
+        //拿到文件名
+        String[] fileNameArray = fileName.split("/");
+        String realName = fileNameArray[3];
+        String[] realNameArray = realName.split("_");
+        fileUUID = realNameArray[0];
+        // 判断上传的是不是压缩视频
+        if (realNameArray[1].equals("zip")) {
+            Video3D video3D = video3DService.getOne(new QueryWrapper<Video3D>().eq("mark", fileUUID));
+            video3D.setVideoCompressionUrl(ossUrl + "/" + fileName);
+            boolean updateFlag = video3DService.updateById(video3D);
+            if (!updateFlag) {
+                return AjaxResult.failed("压缩文件上传失败");
+            } else {
+                return AjaxResult.success("上传成功");
+            }
+        }else {
+            newVideo3D = new Video3D().setMark(fileUUID)
+                    .setType(0)
+                    .setVideoName(videoName)
+                    .setUploadTime(new Date());
+            String fileSize = FileUtil.getFileSizeDescription(Integer.parseInt(size));
+            switch (definition) {
+                case "360p":     // 判断属于哪种清晰度,决定保存的文件名
+                    fileDir = "video360p";
+                    newVideo3D.setVideo360pFormat(fileType);
+                    newVideo3D.setVideo360pSize(fileSize);
+                    newVideo3D.setVideo360pUrl(ossUrl + "/" + fileName);
+                    break;
+                case "480p":
+                    fileDir = "video480p";
+                    newVideo3D.setVideo480pFormat(fileType);
+                    newVideo3D.setVideo480pSize(fileSize);
+                    newVideo3D.setVideo480pUrl(ossUrl + "/" + fileName);
+                    break;
+                case "720p":
+                    fileDir = "video720p";
+                    newVideo3D.setVideo720pFormat(fileType);
+                    newVideo3D.setVideo720pSize(fileSize);
+                    newVideo3D.setVideo720pUrl(ossUrl + "/" + fileName);
+                    break;
+                case "1080p":
+                    fileDir = "video1080p";
+                    newVideo3D.setVideo1080pFormat(fileType);
+                    newVideo3D.setVideo1080pSize(fileSize);
+                    newVideo3D.setVideo1080pUrl(ossUrl + "/" + fileName);
+                    break;
+                default:
+                    break;
+            }
+        }
+    } catch (Exception e) {
+        e.printStackTrace();
+        return AjaxResult.failed("上传失败");
+    }
+
+    // 从微信小程序服务器获取视频对应的QR码
+    try {
+        newVideo3D.setQrUrl(getQr(getUsableToken().getAccessToken(), fileUUID));
+    } catch (Exception e) {
+        e.printStackTrace();
+    }
+
+    //把上传的文件数据入库
+    try {
+        video3DService.save(newVideo3D);
+    } catch (Exception e) {
+        e.printStackTrace();
+        return AjaxResult.failed("上传失败");
+    }
+    return AjaxResult.success("上传成功");
+}
+
+```
+
+回调中用到的AliyunCallbackUtil ，使用到了OSS调用回调接口传来的公钥和签名，采用RSA加密方式进行认证
+
+```java
+public class AliyunCallbackUtil extends HttpServlet {
+
+   private static final long serialVersionUID = 5522372203700422672L;
+
+   /********************************
+    *  @method    : executeGet
+    *  @function  : 生成公钥
+    *  @parameter : [url]
+    *  @return    : java.lang.String
+    *  @date      : 2023/7/21 14:24
+    ********************************/
+   public String executeGet(String url) {
+      BufferedReader in = null;
+      String content = null;
+      try {
+         // 定义HttpClient
+         @SuppressWarnings("resource")
+            DefaultHttpClient client = new DefaultHttpClient();
+         // 实例化HTTP方法
+         HttpGet request = new HttpGet();
+         request.setURI(new URI(url));
+         HttpResponse response = client.execute(request);
+         in = new BufferedReader(new InputStreamReader(response.getEntity().getContent()));
+         StringBuffer sb = new StringBuffer("");
+         String line = "";
+         String NL = System.getProperty("line.separator");
+         while ((line = in.readLine()) != null) {
+            sb.append(line + NL);
+         }
+         in.close();
+         content = sb.toString();
+      } catch (Exception e) {
+      } finally {
+         if (in != null) {
+            try {
+               in.close();// 最后要关闭BufferedReader
+            } catch (Exception e) {
+               e.printStackTrace();
+            }
+         }
+         return content;
+      }
+   }
+
+   /********************************
+    *  @method    : GetPostBody
+    *  @function  : 获取回调Body内容
+    *  @parameter : [is, contentLen]
+    *  @return    : java.lang.String
+    *  @date      : 2023/7/21 14:24
+    ********************************/
+   public String GetPostBody(InputStream is, int contentLen) {
+      if (contentLen > 0) {
+         int readLen = 0;
+         int readLengthThisTime = 0;
+         byte[] message = new byte[contentLen];
+         try {
+            while (readLen != contentLen) {
+               readLengthThisTime = is.read(message, readLen, contentLen - readLen);
+               if (readLengthThisTime == -1) {// Should not happen.
+                  break;
+               }
+               readLen += readLengthThisTime;
+            }
+            return new String(message);
+         } catch (IOException e) {
+         }
+      }
+      return "";
+   }
 
 
+   /********************************
+    *  @method    : VerifyOSSCallbackRequest
+    *  @function  : 验证回调请求
+    *  @parameter : [request, ossCallbackBody]
+    *  @return    : boolean
+    *  @date      : 2023/7/21 14:24
+    ********************************/
+   public boolean VerifyOSSCallbackRequest(HttpServletRequest request, String ossCallbackBody) throws NumberFormatException, IOException
+   {
+      // 整个验证流程是获取autorization 然后生成公钥，用公钥验签 使用请求url+body 与原先autorization作匹配 相同则验签就成功
+      boolean ret = false;   
+      String autorizationInput = new String(request.getHeader("Authorization"));
+      String pubKeyInput = request.getHeader("x-oss-pub-key-url");
+      byte[] authorization = BinaryUtil.fromBase64String(autorizationInput);
+      byte[] pubKey = BinaryUtil.fromBase64String(pubKeyInput);
+      String pubKeyAddr = new String(pubKey);
+      if (!pubKeyAddr.startsWith("http://gosspublic.alicdn.com/") && !pubKeyAddr.startsWith("https://gosspublic.alicdn.com/"))
+      {
+         System.out.println("pub key addr must be oss addrss");
+         return false;
+      }
+      // 生成公钥
+      String retString = executeGet(pubKeyAddr);
+      retString = retString.replace("-----BEGIN PUBLIC KEY-----", "");
+      retString = retString.replace("-----END PUBLIC KEY-----", "");
+      String queryString = request.getQueryString();
+      String uri = request.getRequestURI();
+      String decodeUri = java.net.URLDecoder.decode(uri, "UTF-8");
+      String authStr = decodeUri;
+      if (queryString != null && !queryString.equals("")) {
+         authStr += "?" + queryString;
+      }
+      authStr += "\n" + ossCallbackBody;
+      ret = doCheck(authStr, authorization, retString);
+      return ret;
+   }
+
+   /********************************
+    *  @method    : doCheck
+    *  @function  : 检查回调签名是否正确
+    *  @parameter : [content, sign, publicKey]
+    *  @return    : boolean
+    *  @date      : 2023/7/21 14:25
+    ********************************/
+   public static boolean doCheck(String content, byte[] sign, String publicKey) {
+      try {
+         KeyFactory keyFactory = KeyFactory.getInstance("RSA");
+         byte[] encodedKey = BinaryUtil.fromBase64String(publicKey);
+         PublicKey pubKey = keyFactory.generatePublic(new X509EncodedKeySpec(encodedKey));
+         java.security.Signature signature = java.security.Signature.getInstance("MD5withRSA");
+         signature.initVerify(pubKey);
+         signature.update(content.getBytes());
+         boolean bverify = signature.verify(sign);
+         return bverify;
+
+      } catch (Exception e) {
+         e.printStackTrace();
+      }
+      return false;
+   }
+
+```
+
+涉及到文件由后端进行上传的代码部分：
+
+```java
+File file = new File(filepath);
+FileOutputStream fos = new FileOutputStream(file);
+    byte[] b = new byte[1024];
+    while ((is.read(b)) != -1) {
+       fos.write(b);// 写入数据
+    }
+    is.close();
+    fos.close();// 保存数据
+//添加写入oss
+   
+ //添加写入oss
+    try {
+        ossClient.putObject(aliyunConfig.getBucketName(), "videoRes/share3D/" + mark + "/" + fileName, file);
+    } catch (Exception e) {
+        e.printStackTrace();
+    }
+    //把本地的FILE文件删除
+    String qrDir = ResourceUtil.getStorageParentXADir() + mark + "/";
+    File qrFile = new File(qrDir);
+    FileUtil.delBatchFile(qrFile);
+    return aliyunConfig.getUrlPrefix() + "/videoRes/shareXA/" + mark + "/" + fileName;
+}
+```
+
+涉及文件从后端向OSS获取的代码部分：
+
+```java
+File file = new File(fileDir);
+    String objectName = "videoRes/shareXA/"
+            + mark + "/"
+            + mark
+            + SystemConstant.QR_FILE_NAME_SUFFIX_XA
+            + SystemConstant.QR_IMAGE_FORMAT_DEFAULT_PNG;
+    try {
+        // 下载Object到本地文件，并保存到指定的本地路径中。如果指定的本地文件存在会覆盖，不存在则新建。
+        // 先创建出文件
+        if (!file.exists()) {
+            //先得到文件的上级目录，并创建上级目录，在创建文件
+            file.getParentFile().mkdir();
+            try {
+                //创建文件
+                file.createNewFile();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+        ossClient.getObject(new GetObjectRequest(aliyunConfig.getBucketName(), objectName), file);
+    } catch (Exception e) {
+        e.printStackTrace();
+    }
+    FileUtil.fileToZip(fileDir, zipOut, newVideoName);
+    File imageTargetFile = new File(ResourceUtil.getStorageParent3DDir()
+            + mark + "/");
+    FileUtil.delBatchFile(imageTargetFile);
+}
+```
+
+涉及文件删除的代码：
+
+```java
+public AjaxResult deleteVideos(@RequestBody JSONObject reqObj) {
+    JSONArray marksArray = reqObj.getJSONArray("marks");
+    if (marksArray.size() == 0) {
+        return AjaxResult.failed(ResultCodeEnum.PARAM_FORMAT_ERROR);
+    }
+    int count = 0;
+    for (int i = 0; i < marksArray.size(); i++) {
+        String mark = marksArray.getString(i);
+        try {
+            if (video3DService.remove(new QueryWrapper<Video3D>().eq("mark", mark))) {
+                count++;
+            }
+            favoritesVideo3DService.remove(new QueryWrapper<FavoritesVideo3D>().eq("mark", mark));
+            String prefix = "videoRes/share3D/" + mark + "/";
+            // 列举所有包含指定前缀的文件并删除。
+            String nextMarker = null;
+            ObjectListing objectListing = null;
+            do {
+                ListObjectsRequest listObjectsRequest = new ListObjectsRequest(aliyunConfig.getBucketName())
+                        .withPrefix(prefix)
+                        .withMarker(nextMarker);
+                objectListing = ossClient.listObjects(listObjectsRequest);
+                if (objectListing.getObjectSummaries().size() > 0) {
+                    List<String> keys = new ArrayList<String>();
+                    for (OSSObjectSummary s : objectListing.getObjectSummaries()) {
+                        System.out.println("key name: " + s.getKey());
+                        keys.add(s.getKey());
+                    }
+                    DeleteObjectsRequest deleteObjectsRequest = new DeleteObjectsRequest(aliyunConfig.getBucketName()).withKeys(keys).withEncodingType("url");
+                    DeleteObjectsResult deleteObjectsResult = ossClient.deleteObjects(deleteObjectsRequest);
+                    List<String> deletedObjects = deleteObjectsResult.getDeletedObjects();
+                    for (String obj : deletedObjects) {
+                            String deleteObj = URLDecoder.decode(obj, "UTF-8");
+                            System.out.println(deleteObj);
+                    }
+                }
+                nextMarker = objectListing.getNextMarker();
+            } while (objectListing.isTruncated());
+        } catch (Exception e) {
+            e.printStackTrace();
+            return AjaxResult.failed();
+        }
+    }
+    return AjaxResult.success("删除成功，共删除" + count + "个视频");
+}
+```
