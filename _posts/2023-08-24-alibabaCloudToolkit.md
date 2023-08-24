@@ -16,7 +16,7 @@ keywords: 部署
 
 安装后选择add host
 
-![image-20230824192809810](C:\Users\clt\AppData\Roaming\Typora\typora-user-images\image-20230824192809810.png)
+![image-20230824194657540](https://raw.githubusercontent.com/scottyzh/scottyzh.github.io/main/image/image-20230824194657540.png)
 
 在里面添加服务器ip和账号密码
 
